@@ -210,7 +210,7 @@ function renderInstances() {
   const tb = $("#instances");
   if (instances.length === 0) { tb.innerHTML = '<tr><td colspan="8" class="muted">インスタンスなし</td></tr>'; return; }
   tb.innerHTML = instances.map(i => {
-    const name = esc(i.name);
+    const name = esc(i.name), running = i.status === "Running";
     return `
     <tr>
       <td>${name}</td>
@@ -220,8 +220,13 @@ function renderInstances() {
       <td>${i.memory?(i.memory/1073741824).toFixed(0)+"G":"-"}</td>
       <td>${i.disk?(i.disk/1073741824).toFixed(0)+"G":"-"}</td>
       <td>${esc(i.runtime)||"-"}</td>
-      <td class="actions"><button class="sm danger icon" title="このインスタンスを削除"
-        onclick="deleteInstance('${name}')">🗑</button></td>
+      <td class="actions">
+        <button class="sm icon" title="このインスタンスを起動" ${running ? "disabled" : ""}
+          onclick="instanceAction('start','${name}')">▶</button>
+        <button class="sm secondary icon" title="このインスタンスを停止" ${running ? "" : "disabled"}
+          onclick="instanceAction('stop','${name}')">⏹</button>
+        <button class="sm danger icon" title="このインスタンスを削除"
+          onclick="deleteInstance('${name}')">🗑</button></td>
     </tr>`;
   }).join("");
 }
@@ -244,6 +249,18 @@ function setViewProfile(view, name) {
   renderToggle(view);
   if (view === "containers") refreshContainers();
   if (view === "images") refreshImages();
+}
+
+async function instanceAction(action, name) {
+  if (action === "stop" && !confirm(`インスタンス「${name}」を停止しますか？(colima stop)`)) return;
+  showView("logs");
+  setBusy(true);
+  try {
+    const res = await fetch("/api/action", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ action, profile: name }) });
+    await streamGuard(res);
+  } catch(e) { logEl.textContent += "\n[client error] " + e; }
+  finally { setBusy(false); refresh(); }
 }
 
 async function deleteInstance(name) {
