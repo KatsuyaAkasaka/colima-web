@@ -52,29 +52,29 @@
 
 ## 使い方
 
-### 手元で試す
+事前に [colima](https://github.com/abiosoft/colima) がインストール済みであること（`colima` が PATH 上にあればOK）。
+
 ```sh
-go build -o colima-web .
-./colima-web                 # http://127.0.0.1:51900
-./colima-web -addr 127.0.0.1:8080   # ポート変更
+git clone git@github.com:KatsuyaAkasaka/colima-web.git
+cd colima-web
+./install.sh                 # ポート変更は PORT=8080 ./install.sh
 ```
 
-### セットアップ（推奨・1コマンド）
-```sh
-./install.sh                 # 下記をすべて自動作成
-PORT=8080 ./install.sh       # ポート変更（webloc/plist 両方に反映）
-```
-`install.sh` が作るシステム側一式:
+これだけで完了する。`install.sh` が以下を自動で行う:
+
+1. バイナリをビルドして `~/.local/bin/colima-web` に配置
+2. `launchd` に登録 → **ログイン時に自動起動**（落ちても `KeepAlive` で復帰）
+3. **デスクトップに 🐳「Colima Web」アイコン**を作成（ダブルクリックで Web UI を開く）
+
+完了後、デスクトップの 🐳 をダブルクリックするか `http://127.0.0.1:51900` を開く。
 
 | 生成物 | 内容 |
 |--------|------|
 | `~/.local/bin/colima-web` | 実行バイナリ（temp→再署名→mv で配置） |
 | `~/Library/LaunchAgents/com.colima-web.plist` | ログイン時自動起動（`RunAtLoad`/`KeepAlive`） |
-| `~/Desktop/Colima Web` | 🐳 アイコン付き **Finder エイリアス**（ダブルクリックで Web UI を開く） |
+| `~/Desktop/Colima Web` | 🐳 アイコン付き **Finder エイリアス**（実体は `Colima Web.webloc`） |
 
-ログイン中は常駐し、落ちても `KeepAlive` で再起動する。
-
-- デスクトップエイリアスは `unix symlink` ではなく **Finder エイリアス**（symlink はカスタムアイコン不可のため）。リンク実体は `Colima Web.webloc`。
+- デスクトップは `unix symlink` ではなく **Finder エイリアス**（symlink はカスタムアイコン不可のため）。
 - アイコン適用には `swiftc`（Apple 標準）を使用。無い環境では既定アイコンのまま。
 - 初回は `osascript` による Finder 操作で「自動化」の許可を求められることがある（許可後に再実行）。
 
