@@ -47,22 +47,15 @@ cd colima-web
 
 完了後、デスクトップの 🐳 をダブルクリックするか `http://127.0.0.1:51900` を開く。
 
-| 生成物 | 内容 |
-|--------|------|
-| `~/.local/bin/colima-web` | 実行バイナリ（temp→再署名→mv で配置） |
-| `~/Library/LaunchAgents/com.colima-web.plist` | ログイン時自動起動（`RunAtLoad`/`KeepAlive`） |
-| `~/Desktop/Colima Web` | 🐳 アイコン付き **Finder エイリアス**（実体は `Colima Web.webloc`） |
-
-- デスクトップは `unix symlink` ではなく **Finder エイリアス**（symlink はカスタムアイコン不可のため）。
-- アイコン適用には `swiftc`（Apple 標準）を使用。無い環境では既定アイコンのまま。
-- 初回は `osascript` による Finder 操作で「自動化」の許可を求められることがある（許可後に再実行）。
-
 ### 解除
-```sh
-./uninstall.sh               # バイナリ・plist・デスクトップエイリアスを削除
-```
 
-### ログ
-```
-~/Library/Logs/com.colima-web.log
+`uninstall.sh` がインストール時に作成したものをすべて削除する:
+
+- 自動起動の解除（`launchd` から登録解除）
+- バイナリ（`~/.local/bin/colima-web`）の削除
+- LaunchAgent 設定（`~/Library/LaunchAgents/com.colima-web.plist`）の削除
+- デスクトップの 🐳「Colima Web」アイコンの削除
+
+```sh
+./uninstall.sh
 ```
