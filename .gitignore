@@ -1,0 +1,9 @@
+# ビルド成果物（go build / swiftc）
+./colima-web
+./seticon
+
+# 生成される LaunchAgent plist（ユーザー名・PATH を含むためコミットしない）
+*.plist
+
+# macOS
+.DS_Store

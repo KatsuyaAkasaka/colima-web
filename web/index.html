@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>colima-web</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --side:#13161c; --border:#2a2f3a; --fg:#e6e9ef; --muted:#8b93a7; --accent:#4f9cf9; --green:#3fb950; --red:#f85149; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:12px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; }
+  header h1 { font-size:16px; margin:0; }
+  header .ver { color:var(--muted); font-size:12px; }
+
+  .layout { display:flex; height:calc(100vh - 49px); }
+  nav.sidebar { width:200px; flex-shrink:0; background:var(--side); border-right:1px solid var(--border); padding:12px 8px; display:flex; flex-direction:column; gap:4px; }
+  nav.sidebar button { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:none; color:var(--muted); padding:10px 12px; border-radius:8px; font-size:14px; cursor:pointer; }
+  nav.sidebar button:hover { background:rgba(255,255,255,.04); color:var(--fg); }
+  nav.sidebar button.active { background:rgba(79,156,249,.14); color:var(--fg); }
+  nav.sidebar .ico { width:18px; text-align:center; }
+  nav.sidebar .sep { margin:8px 12px 4px; font-size:11px; color:#5a6172; text-transform:uppercase; letter-spacing:.5px; }
+
+  .content { flex:1; overflow:auto; padding:24px; }
+  .view { display:none; }
+  .view.active { display:block; }
+  .view h2 { font-size:15px; margin:0 0 4px; }
+  .view .desc { color:var(--muted); font-size:13px; margin:0 0 18px; }
+
+  /* 表示領域内のインスタンス切り替えトグル */
+  .toggle { display:inline-flex; gap:2px; background:var(--side); border:1px solid var(--border); border-radius:8px; padding:3px; margin-bottom:16px; flex-wrap:wrap; }
+  .toggle button { background:none; border:none; color:var(--muted); padding:6px 14px; border-radius:6px; font-size:13px; cursor:pointer; }
+  .toggle button.active { background:var(--accent); color:#fff; }
+  .toggle button:hover:not(.active) { color:var(--fg); }
+  .toggle .empty { padding:6px 10px; color:var(--muted); font-size:13px; }
+
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:18px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th,td { text-align:left; padding:13px 12px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:500; }
+  .badge { padding:2px 8px; border-radius:20px; font-size:12px; }
+  .badge.Running, .badge.running { background:rgba(63,185,80,.15); color:var(--green); }
+  .badge.Stopped, .badge.exited, .badge.created { background:rgba(248,81,73,.15); color:var(--red); }
+  code.mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--muted); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  input,select,textarea { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--fg); border-radius:6px; padding:8px; font-size:14px; font-family:inherit; }
+  .row { display:flex; gap:10px; align-items:center; margin-top:8px; }
+  button { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:9px 16px; font-size:14px; cursor:pointer; }
+  button.secondary { background:#2a2f3a; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.sm { padding:10px 16px; font-size:18px; margin-right:6px; }
+  button.danger { background:#6e2a2a; }
+  button.icon { padding:8px 14px; margin:0; line-height:1; font-size:30px; }
+  .actions { white-space:nowrap; text-align:right; }
+  .check { display:flex; align-items:center; gap:6px; }
+  .check input { width:auto; }
+  pre#log { background:#000; color:#d6deeb; padding:14px; border-radius:8px; height:calc(100vh - 200px); min-height:280px; overflow:auto; font-size:12.5px; white-space:pre-wrap; margin:0; }
+  .muted { color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐳 colima-web</h1>
+  <span class="ver" id="version">…</span>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <span class="sep">表示</span>
+    <button data-view="instances" onclick="showView('instances')"><span class="ico">🖥</span>インスタンス</button>
+    <button data-view="containers" onclick="showView('containers')"><span class="ico">📦</span>コンテナ</button>
+    <button data-view="images" onclick="showView('images')"><span class="ico">💿</span>イメージ</button>
+    <span class="sep">アクション</span>
+    <button data-view="start" onclick="showView('start')"><span class="ico">▶</span>インスタンス起動</button>
+    <button data-view="maintenance" onclick="showView('maintenance')"><span class="ico">🧹</span>クリーンアップ</button>
+    <button data-view="logs" onclick="showView('logs')"><span class="ico">📜</span>ログ</button>
+  </nav>
+
+  <main class="content">
+    <!-- インスタンス（一覧表示のみ） -->
+    <section class="view" id="view-instances">
+      <h2>インスタンス</h2>
+      <p class="desc">colima の VM 一覧です。</p>
+      <div class="panel">
+        <table>
+          <thead><tr><th>Profile</th><th>Status</th><th>Arch</th><th>CPU</th><th>Mem</th><th>Disk</th><th>Runtime</th><th></th></tr></thead>
+          <tbody id="instances"><tr><td colspan="8" class="muted">読み込み中…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- コンテナ -->
+    <section class="view" id="view-containers">
+      <h2>コンテナ</h2>
+      <p class="desc">インスタンスを切り替えて、そのVMのコンテナを表示します。</p>
+      <div class="toggle" id="containers-toggle"></div>
+      <div class="panel">
+        <table>
+          <thead><tr><th>Name</th><th>State</th><th>Image</th><th>Status</th><th>Ports</th><th>ID</th><th>操作</th></tr></thead>
+          <tbody id="containers"><tr><td colspan="7" class="muted">読み込み中…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- イメージ -->
+    <section class="view" id="view-images">
+      <h2>イメージ</h2>
+      <p class="desc">インスタンスを切り替えて、そのVMのイメージを表示します。</p>
+      <div class="toggle" id="images-toggle"></div>
+      <div class="panel">
+        <div class="row" style="margin:0 0 14px">
+          <input id="pull-ref" placeholder="pull するイメージ名（例: nginx:latest）" style="max-width:420px">
+          <button id="btn-pull" class="icon" title="Pull（取得）" onclick="pullImage()">⬇</button>
+        </div>
+        <table>
+          <thead><tr><th>Repository</th><th>Tag</th><th>ID</th><th>Size</th><th>Created</th><th>使用中</th><th>操作</th></tr></thead>
+          <tbody id="images"><tr><td colspan="7" class="muted">読み込み中…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 起動フォーム -->
+    <section class="view" id="view-start">
+      <h2>インスタンス起動 (colima start)</h2>
+      <p class="desc">新規 / 既存プロファイルを指定オプションで起動します。停止・再起動も Profile 欄が対象（空なら default）。</p>
+      <div class="panel">
+        <div class="grid">
+          <div><label>Profile</label><input id="profile" placeholder="default"></div>
+          <div><label>CPU</label><input id="cpus" type="number" min="1" placeholder="2"></div>
+          <div><label>Memory (GiB)</label><input id="memory" type="number" min="1" placeholder="2"></div>
+          <div><label>Disk (GiB)</label><input id="disk" type="number" min="1" placeholder="100"></div>
+          <div><label>Arch</label><select id="arch"><option value="">default</option><option>aarch64</option><option>x86_64</option></select></div>
+          <div><label>Runtime</label><select id="runtime"><option value="">default</option><option>docker</option><option>containerd</option><option>incus</option></select></div>
+          <div><label>VM Type</label><select id="vmType"><option value="">default</option><option>vz</option><option>qemu</option></select></div>
+        </div>
+        <div style="margin-top:12px"><label>Mounts（1行に1つ。書込可は :w 接尾）</label><textarea id="mounts" rows="2" placeholder="~/projects:w"></textarea></div>
+        <div class="row">
+          <span class="check"><input type="checkbox" id="kubernetes"><label for="kubernetes" style="margin:0">Kubernetes</label></span>
+          <button id="btn-start" onclick="runAction('start')">Start</button>
+          <button class="secondary" id="btn-restart" onclick="runAction('restart')">Restart</button>
+          <button class="secondary" id="btn-stop" onclick="runAction('stop')">Stop</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- クリーンアップ -->
+    <section class="view" id="view-maintenance">
+      <h2>クリーンアップ</h2>
+      <p class="desc">対象インスタンスを切り替えて実行します。</p>
+      <div class="toggle" id="maintenance-toggle"></div>
+      <div class="panel">
+        <div class="row" style="justify-content:space-between">
+          <div><b>docker system prune</b><div class="muted">未使用のコンテナ・ネットワーク・ぶら下がりイメージ・ビルドキャッシュを削除。</div></div>
+          <button class="danger" onclick="prune('docker')">実行</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="row" style="justify-content:space-between">
+          <div><b>colima prune</b><div class="muted">colima がダウンロードしたキャッシュ資産を削除。</div></div>
+          <button class="danger" onclick="prune('colima')">実行</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ログ -->
+    <section class="view" id="view-logs">
+      <h2>ログ / コマンド出力</h2>
+      <p class="desc">直近に実行したコマンドの出力（操作を実行すると自動でこの画面に切り替わります）。</p>
+      <pre id="log">$ ...</pre>
+    </section>
+  </main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const logEl = $("#log");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+let instances = [];
+let currentView = "instances";
+// ビューごとに独立した対象インスタンス（トグルで切替）
+const viewProfile = { containers: null, images: null, maintenance: null };
+
+function showView(name) {
+  currentView = name;
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === "view-" + name));
+  document.querySelectorAll('nav.sidebar button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  if (name === "containers") refreshContainers();
+  if (name === "images") refreshImages();
+}
+
+/* ---------- インスタンス一覧（表示のみ） ---------- */
+async function refresh() {
+  try {
+    const res = await fetch("/api/instances");
+    instances = (await res.json()) || [];
+    // 各ビューの対象が未設定/消えたら、稼働中（なければ先頭）を既定に
+    for (const v of ["containers", "images", "maintenance"]) {
+      if (instances.length === 0) viewProfile[v] = null;
+      else if (!viewProfile[v] || !instances.some(i => i.name === viewProfile[v]))
+        viewProfile[v] = (instances.find(i => i.status === "Running") || instances[0]).name;
+    }
+    renderInstances();
+    renderToggles();
+  } catch(e) { console.error(e); }
+}
+
+function renderInstances() {
+  const tb = $("#instances");
+  if (instances.length === 0) { tb.innerHTML = '<tr><td colspan="8" class="muted">インスタンスなし</td></tr>'; return; }
+  tb.innerHTML = instances.map(i => {
+    const name = esc(i.name);
+    return `
+    <tr>
+      <td>${name}</td>
+      <td><span class="badge ${esc(i.status)}">${esc(i.status)}</span></td>
+      <td>${i.arch||"-"}</td>
+      <td>${i.cpus||"-"}</td>
+      <td>${i.memory?(i.memory/1073741824).toFixed(0)+"G":"-"}</td>
+      <td>${i.disk?(i.disk/1073741824).toFixed(0)+"G":"-"}</td>
+      <td>${esc(i.runtime)||"-"}</td>
+      <td class="actions"><button class="sm danger icon" title="このインスタンスを削除"
+        onclick="deleteInstance('${name}')">🗑</button></td>
+    </tr>`;
+  }).join("");
+}
+
+/* ---------- トグル（表示領域内） ---------- */
+function renderToggles() { ["containers", "images", "maintenance"].forEach(renderToggle); }
+
+function renderToggle(view) {
+  const el = $(`#${view}-toggle`);
+  if (instances.length === 0) { el.innerHTML = '<span class="empty">インスタンスがありません</span>'; return; }
+  el.innerHTML = instances.map(i => {
+    const name = esc(i.name), on = i.name === viewProfile[view];
+    return `<button class="${on ? "active" : ""}" onclick="setViewProfile('${view}','${name}')">${name}</button>`;
+  }).join("");
+}
+
+function setViewProfile(view, name) {
+  if (viewProfile[view] === name) return;
+  viewProfile[view] = name;
+  renderToggle(view);
+  if (view === "containers") refreshContainers();
+  if (view === "images") refreshImages();
+}
+
+async function deleteInstance(name) {
+  if (!confirm(`インスタンス「${name}」を削除しますか？\nVM・設定・コンテナを含めすべて削除されます（colima delete -f）。`)) return;
+  showView("logs");
+  setBusy(true);
+  try {
+    const res = await fetch("/api/action", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ action:"delete", profile: name }) });
+    await streamGuard(res);
+  } catch(e) { logEl.textContent += "\n[client error] " + e; }
+  finally { setBusy(false); refresh(); }
+}
+
+/* ---------- コンテナ ---------- */
+async function refreshContainers() {
+  const profile = viewProfile.containers;
+  const tb = $("#containers");
+  if (!profile) { tb.innerHTML = '<tr><td colspan="7" class="muted">—</td></tr>'; return; }
+  try {
+    const res = await fetch("/api/containers?profile=" + encodeURIComponent(profile));
+    if (!res.ok) { tb.innerHTML = `<tr><td colspan="7" class="muted">${esc(await res.text())}</td></tr>`; return; }
+    const list = await res.json();
+    if (!list || list.length === 0) { tb.innerHTML = '<tr><td colspan="7" class="muted">コンテナなし</td></tr>'; return; }
+    tb.innerHTML = list.map(c => {
+      const id = esc(c.ID), running = c.State === "running";
+      const toggle = running
+        ? `<button class="sm secondary icon" title="停止" onclick="containerAction('stop','${id}')">⏹</button>`
+        : `<button class="sm icon" title="起動" onclick="containerAction('start','${id}')">▶</button>`;
+      return `
+      <tr>
+        <td>${esc(c.Names)}</td>
+        <td><span class="badge ${esc(c.State)}">${esc(c.State)}</span></td>
+        <td>${esc(c.Image)}</td>
+        <td>${esc(c.Status)}</td>
+        <td><code class="mono">${esc(c.Ports)}</code></td>
+        <td><code class="mono">${id}</code></td>
+        <td class="actions">
+          ${toggle}
+          <button class="sm secondary icon" title="再起動" onclick="containerAction('restart','${id}')">↻</button>
+          <button class="sm secondary icon" title="ログ" onclick="containerLogs('${id}')">📜</button>
+          <button class="sm danger icon" title="削除" onclick="containerAction('remove','${id}')">🗑</button>
+        </td>
+      </tr>`;
+    }).join("");
+  } catch(e) { tb.innerHTML = `<tr><td colspan="7" class="muted">${esc(e)}</td></tr>`; }
+}
+
+async function containerAction(action, id) {
+  if (action === "remove" && !confirm(`コンテナ ${id} を削除しますか？(rm -f)`)) return;
+  showView("logs");
+  setBusy(true);
+  try {
+    const res = await fetch("/api/container", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ action, profile: viewProfile.containers || "", id }) });
+    await streamGuard(res);
+  } catch(e) { logEl.textContent += "\n[client error] " + e; }
+  finally { setBusy(false); refreshContainers(); }
+}
+
+async function containerLogs(id) {
+  showView("logs");
+  try {
+    const res = await fetch(`/api/container/logs?profile=${encodeURIComponent(viewProfile.containers||"")}&id=${encodeURIComponent(id)}`);
+    await streamGuard(res);
+  } catch(e) { logEl.textContent += "\n[client error] " + e; }
+}
+
+/* ---------- イメージ ---------- */
+async function refreshImages() {
+  const profile = viewProfile.images;
+  const tb = $("#images");
+  if (!profile) { tb.innerHTML = '<tr><td colspan="7" class="muted">—</td></tr>'; return; }
+  try {
+    const res = await fetch("/api/images?profile=" + encodeURIComponent(profile));
+    if (!res.ok) { tb.innerHTML = `<tr><td colspan="7" class="muted">${esc(await res.text())}</td></tr>`; return; }
+    const list = await res.json();
+    if (!list || list.length === 0) { tb.innerHTML = '<tr><td colspan="7" class="muted">イメージなし</td></tr>'; return; }
+    tb.innerHTML = list.map(im => {
+      const id = esc(im.ID);
+      return `
+      <tr>
+        <td>${esc(im.Repository)}</td>
+        <td>${esc(im.Tag)}</td>
+        <td><code class="mono">${id}</code></td>
+        <td>${esc(im.Size)}</td>
+        <td>${esc(im.CreatedSince)}</td>
+        <td>${esc(im.Containers) === "0" ? "-" : esc(im.Containers)}</td>
+        <td class="actions"><button class="sm danger icon" title="削除 (rmi)" onclick="removeImage('${id}')">🗑</button></td>
+      </tr>`;
+    }).join("");
+  } catch(e) { tb.innerHTML = `<tr><td colspan="7" class="muted">${esc(e)}</td></tr>`; }
+}
+
+async function pullImage() {
+  const ref = $("#pull-ref").value.trim();
+  if (!ref) return;
+  showView("logs");
+  setBusy(true);
+  try {
+    const res = await fetch("/api/image", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ action:"pull", profile: viewProfile.images || "", ref }) });
+    await streamGuard(res);
+  } catch(e) { logEl.textContent += "\n[client error] " + e; }
+  finally { setBusy(false); refreshImages(); }
+}
+
+async function removeImage(ref) {
+  if (!confirm(`イメージ ${ref} を削除しますか？(docker rmi)`)) return;
+  showView("logs");
+  setBusy(true);
+  try {
+    const res = await fetch("/api/image", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ action:"remove", profile: viewProfile.images || "", ref }) });
+    await streamGuard(res);
+  } catch(e) { logEl.textContent += "\n[client error] " + e; }
+  finally { setBusy(false); refreshImages(); }
+}
+
+/* ---------- クリーンアップ ---------- */
+async function prune(target) {
+  const msg = target === "docker"
+    ? `[${viewProfile.maintenance}] docker system prune -f を実行します（未使用リソースを削除）。よろしいですか？`
+    : `[${viewProfile.maintenance}] colima prune -f を実行します（ダウンロードキャッシュを削除）。よろしいですか？`;
+  if (!confirm(msg)) return;
+  showView("logs");
+  setBusy(true);
+  try {
+    const res = await fetch("/api/prune", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ target, profile: viewProfile.maintenance || "" }) });
+    await streamGuard(res);
+  } catch(e) { logEl.textContent += "\n[client error] " + e; }
+  finally { setBusy(false); }
+}
+
+/* ---------- インスタンス start/stop/restart ---------- */
+async function runAction(action) {
+  const config = {
+    cpus: +$("#cpus").value || 0, memory: +$("#memory").value || 0, disk: +$("#disk").value || 0,
+    arch: $("#arch").value, runtime: $("#runtime").value, vmType: $("#vmType").value,
+    kubernetes: $("#kubernetes").checked, mounts: $("#mounts").value,
+  };
+  showView("logs");
+  setBusy(true);
+  try {
+    const res = await fetch("/api/action", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ action, profile: $("#profile").value.trim(), config }) });
+    await streamGuard(res);
+  } catch(e) { logEl.textContent += "\n[client error] " + e; }
+  finally { setBusy(false); refresh(); }
+}
+
+/* ---------- 共通 ---------- */
+function setBusy(b) { document.querySelectorAll("#btn-start,#btn-stop,#btn-restart,#btn-pull").forEach(el => el.disabled = b); }
+
+async function streamGuard(res) {
+  logEl.textContent = "";
+  if (!res.ok) { logEl.textContent = "error: " + await res.text(); return false; }
+  await streamToLog(res);
+  return true;
+}
+
+async function streamToLog(res) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    logEl.textContent += dec.decode(value, { stream:true });
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
+
+async function loadVersion() {
+  try { const r = await fetch("/api/version"); const j = await r.json(); $("#version").textContent = (j.version||"").split("\n")[0]; } catch(e){}
+}
+
+showView("instances");
+loadVersion();
+refresh();
+setInterval(() => {
+  refresh();
+  if (currentView === "containers") refreshContainers();
+  if (currentView === "images") refreshImages();
+}, 5000);
+</script>
+</body>
+</html>
