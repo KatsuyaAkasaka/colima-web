@@ -1,0 +1,17 @@
+name: betterleaks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # コミット履歴全体をスキャンするため全コミットを取得
+      - name: Scan for secrets
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/betterleaks/betterleaks:latest \
+            git /repo -v
